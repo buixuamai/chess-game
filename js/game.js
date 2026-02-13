@@ -33,7 +33,7 @@ $(document).ready(function() {
     updateMoveHistory();
     
     // Initialize Stockfish AI
-    stockfish = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js');
+    stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish.js@10.0.0/stockfish.js');
     
     stockfish.onmessage = function(event) {
         // Parse AI move
