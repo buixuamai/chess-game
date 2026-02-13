@@ -92,10 +92,12 @@ function onDrop(source, target) {
     updateStatus();
     updateMoveHistory();
     
-    // If playing against AI and game not over and it's black's turn, make AI move
-    if (gameMode === 'ai' && !game.game_over() && game.turn() === 'b') {
-        // Add small delay for better UX
-        setTimeout(makeAiMove, 500);
+    // If playing against AI and game not over, make AI move
+    if (gameMode === 'ai' && !game.game_over()) {
+        // Wait for board to update, then make AI move
+        setTimeout(function() {
+            makeAiMove();
+        }, 500);
     }
 }
 
