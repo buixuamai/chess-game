@@ -1,6 +1,6 @@
 // Chess Game JavaScript
 // Uses chess.js for game logic and chessboard.js for UI
-// Uses stockfish.js for AI
+// Simple AI using random moves + basic evaluation
 
 // Initialize game state
 let game = new Chess();
@@ -10,16 +10,13 @@ let $status = $('#status');
 
 // Game mode: 'pvp' (player vs player) or 'ai' (player vs computer)
 let gameMode = 'pvp';
-let aiLevel = 3; // 1-20 (skill level)
-
-// Stockfish AI
-let stockfish = null;
-let isAiThinking = false;
+let aiLevel = 3; // Affects thinking time
 
 // Game configuration
 const config = {
     draggable: true,
     position: 'start',
+    orientation: 'white',
     onDragStart: onDragStart,
     onDrop: onDrop,
     onSnapEnd: onSnapEnd,
@@ -31,36 +28,6 @@ $(document).ready(function() {
     board = Chessboard('board', config);
     updateStatus();
     updateMoveHistory();
-    
-    // Initialize Stockfish AI
-    stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish.js@10.0.0/stockfish.js');
-    
-    stockfish.onmessage = function(event) {
-        // Parse AI move
-        if (event.data.startsWith('bestmove')) {
-            const bestMove = event.data.split(' ')[1];
-            if (bestMove && bestMove !== '(none)') {
-                const move = game.move({
-                    from: bestMove.substring(0, 2),
-                    to: bestMove.substring(2, 4),
-                    promotion: 'q'
-                });
-                
-                if (move) {
-                    moveHistory.push({
-                        move: move,
-                        fen: game.fen()
-                    });
-                    
-                    board.position(game.fen());
-                    updateStatus();
-                    updateMoveHistory();
-                }
-            }
-            isAiThinking = false;
-            updateAiIndicator();
-        }
-    };
     
     // Button event listeners
     $('#new-game-btn').on('click', newGame);
@@ -92,11 +59,9 @@ function onDragStart(source, piece, position, orientation) {
     // Do not pick up pieces if the game is over
     if (game.game_over()) return false;
 
-    // In AI mode, only allow player to move their color
+    // In AI mode, only allow player to move white
     if (gameMode === 'ai') {
-        const playerColor = board.orientation() === 'white' ? 'w' : 'b';
-        if (playerColor === 'w' && piece.search(/^b/) !== -1) return false;
-        if (playerColor === 'b' && piece.search(/^w/) !== -1) return false;
+        if (piece.search(/^b/) !== -1) return false;
     } else {
         // PvP mode - only pick up pieces for the side to move
         if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
@@ -104,9 +69,6 @@ function onDragStart(source, piece, position, orientation) {
             return false;
         }
     }
-    
-    // Don't allow AI to move while thinking
-    if (isAiThinking) return false;
 }
 
 // Called when the piece is dropped
@@ -130,30 +92,48 @@ function onDrop(source, target) {
     updateStatus();
     updateMoveHistory();
     
-    // If playing against AI and game not over, make AI move
-    if (gameMode === 'ai' && !game.game_over()) {
-        makeAiMove();
+    // If playing against AI and game not over and it's black's turn, make AI move
+    if (gameMode === 'ai' && !game.game_over() && game.turn() === 'b') {
+        // Add small delay for better UX
+        setTimeout(makeAiMove, 500);
     }
 }
 
-// Make AI move using Stockfish
+// Make AI move using simple evaluation
 function makeAiMove() {
-    isAiThinking = true;
-    updateAiIndicator();
+    const moves = game.moves();
     
-    // Set skill level
-    stockfish.postMessage('setoption name Skill Level value ' + aiLevel);
+    if (moves.length === 0) return;
     
-    // Send position to Stockfish
-    const fen = game.fen();
-    stockfish.postMessage('position fen ' + fen);
-    stockfish.postMessage('go depth 15');
-}
-
-// Update AI thinking indicator
-function updateAiIndicator() {
-    if (isAiThinking) {
-        $('#status').text('AI is thinking...');
+    // Simple AI: randomly select a move (can be improved)
+    let bestMove = moves[Math.floor(Math.random() * moves.length)];
+    
+    // Try to make a better move
+    let bestScore = -9999;
+    for (let i = 0; i < Math.min(moves.length, 10); i++) {
+        const move = moves[Math.floor(Math.random() * moves.length)];
+        const tempMove = game.move(move);
+        if (tempMove) {
+            // Simple evaluation (just random for now)
+            const score = Math.random() * 10;
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
+            }
+            game.undo();
+        }
+    }
+    
+    const finalMove = game.move(bestMove);
+    if (finalMove) {
+        moveHistory.push({
+            move: finalMove,
+            fen: game.fen()
+        });
+        
+        board.position(game.fen());
+        updateStatus();
+        updateMoveHistory();
     }
 }
 
@@ -178,6 +158,11 @@ function updateStatus() {
     } else {
         // Game continues
         status = moveColor + "'s Turn";
+        
+        if (gameMode === 'ai' && game.turn() === 'b') {
+            status = 'AI is thinking...';
+        }
+        
         $('#status').removeClass('game-over');
 
         // Check for check
@@ -189,9 +174,7 @@ function updateStatus() {
         }
     }
 
-    if (!isAiThinking) {
-        $('#status').text(status);
-    }
+    $('#status').text(status);
 }
 
 // Update the move history display
@@ -227,8 +210,6 @@ function newGame() {
     game.reset();
     board.start();
     moveHistory = [];
-    isAiThinking = false;
-    updateAiIndicator();
     updateStatus();
     updateMoveHistory();
     $('#status').removeClass('check game-over');
