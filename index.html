@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Chess Game</h1>
+            <div id="status" class="status">White's Turn</div>
+        </header>
+        
+        <main class="game-area">
+            <div class="board-section">
+                <div id="board"></div>
+            </div>
+            
+            <aside class="history-section">
+                <h2>Move History</h2>
+                <div id="move-history" class="move-history"></div>
+            </aside>
+        </main>
+        
+        <footer class="controls">
+            <button id="new-game-btn" class="btn btn-primary">New Game</button>
+            <button id="undo-btn" class="btn btn-secondary">Undo</button>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
