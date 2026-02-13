@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Game</title>
+    <title>Chess Game - Play vs AI</title>
     
     <!-- CSS -->
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
@@ -28,9 +28,21 @@
         </main>
         
         <footer class="controls">
+            <button id="mode-btn" class="btn btn-ai">Play vs AI</button>
             <button id="new-game-btn" class="btn btn-primary">New Game</button>
             <button id="undo-btn" class="btn btn-secondary">Undo</button>
         </footer>
+        
+        <div class="ai-controls" style="display: none;">
+            <label for="ai-level">AI Level:</label>
+            <select id="ai-level">
+                <option value="1">1 (Easy)</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20 (Hard)</option>
+            </select>
+        </div>
     </div>
 
     <!-- jQuery required for chessboard.js -->

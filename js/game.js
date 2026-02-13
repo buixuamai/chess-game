@@ -1,13 +1,20 @@
 // Chess Game JavaScript
 // Uses chess.js for game logic and chessboard.js for UI
+// Uses stockfish.js for AI
 
 // Initialize game state
 let game = new Chess();
 let board = null;
 let moveHistory = [];
 let $status = $('#status');
-let $fen = $('#fen');
-let $pgn = $('#pgn');
+
+// Game mode: 'pvp' (player vs player) or 'ai' (player vs computer)
+let gameMode = 'pvp';
+let aiLevel = 3; // 1-20 (skill level)
+
+// Stockfish AI
+let stockfish = null;
+let isAiThinking = false;
 
 // Game configuration
 const config = {
@@ -25,21 +32,81 @@ $(document).ready(function() {
     updateStatus();
     updateMoveHistory();
     
+    // Initialize Stockfish AI
+    stockfish = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js');
+    
+    stockfish.onmessage = function(event) {
+        // Parse AI move
+        if (event.data.startsWith('bestmove')) {
+            const bestMove = event.data.split(' ')[1];
+            if (bestMove && bestMove !== '(none)') {
+                const move = game.move({
+                    from: bestMove.substring(0, 2),
+                    to: bestMove.substring(2, 4),
+                    promotion: 'q'
+                });
+                
+                if (move) {
+                    moveHistory.push({
+                        move: move,
+                        fen: game.fen()
+                    });
+                    
+                    board.position(game.fen());
+                    updateStatus();
+                    updateMoveHistory();
+                }
+            }
+            isAiThinking = false;
+            updateAiIndicator();
+        }
+    };
+    
     // Button event listeners
     $('#new-game-btn').on('click', newGame);
     $('#undo-btn').on('click', undoMove);
+    $('#mode-btn').on('click', toggleMode);
+    $('#ai-level').on('change', function() {
+        aiLevel = parseInt($(this).val());
+    });
 });
+
+// Toggle between PvP and AI mode
+function toggleMode() {
+    if (gameMode === 'pvp') {
+        gameMode = 'ai';
+        $('#mode-btn').text('Play vs Player');
+        $('#mode-btn').removeClass('btn-primary').addClass('btn-ai');
+        $('.ai-controls').show();
+    } else {
+        gameMode = 'pvp';
+        $('#mode-btn').text('Play vs AI');
+        $('#mode-btn').removeClass('btn-ai').addClass('btn-primary');
+        $('.ai-controls').hide();
+    }
+    newGame();
+}
 
 // Called when the piece drag begins
 function onDragStart(source, piece, position, orientation) {
     // Do not pick up pieces if the game is over
     if (game.game_over()) return false;
 
-    // Only pick up pieces for the side to move
-    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-        (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-        return false;
+    // In AI mode, only allow player to move their color
+    if (gameMode === 'ai') {
+        const playerColor = board.orientation() === 'white' ? 'w' : 'b';
+        if (playerColor === 'w' && piece.search(/^b/) !== -1) return false;
+        if (playerColor === 'b' && piece.search(/^w/) !== -1) return false;
+    } else {
+        // PvP mode - only pick up pieces for the side to move
+        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+            return false;
+        }
     }
+    
+    // Don't allow AI to move while thinking
+    if (isAiThinking) return false;
 }
 
 // Called when the piece is dropped
@@ -62,10 +129,35 @@ function onDrop(source, target) {
 
     updateStatus();
     updateMoveHistory();
+    
+    // If playing against AI and game not over, make AI move
+    if (gameMode === 'ai' && !game.game_over()) {
+        makeAiMove();
+    }
+}
+
+// Make AI move using Stockfish
+function makeAiMove() {
+    isAiThinking = true;
+    updateAiIndicator();
+    
+    // Set skill level
+    stockfish.postMessage('setoption name Skill Level value ' + aiLevel);
+    
+    // Send position to Stockfish
+    const fen = game.fen();
+    stockfish.postMessage('position fen ' + fen);
+    stockfish.postMessage('go depth 15');
+}
+
+// Update AI thinking indicator
+function updateAiIndicator() {
+    if (isAiThinking) {
+        $('#status').text('AI is thinking...');
+    }
 }
 
 // Update the board position after the piece snap
-// for castling, en passant, pawn promotion
 function onSnapEnd() {
     board.position(game.fen());
 }
@@ -77,7 +169,7 @@ function updateStatus() {
 
     // Check for game over
     if (game.in_checkmate()) {
-        status = 'Game over, ' + moveColor + ' is in checkmate.';
+        status = 'Game over, ' + moveColor + ' is in checkmate!';
         $('#status').addClass('game-over');
         $('#status').removeClass('check');
     } else if (game.in_draw()) {
@@ -97,7 +189,9 @@ function updateStatus() {
         }
     }
 
-    $('#status').text(status);
+    if (!isAiThinking) {
+        $('#status').text(status);
+    }
 }
 
 // Update the move history display
@@ -133,6 +227,8 @@ function newGame() {
     game.reset();
     board.start();
     moveHistory = [];
+    isAiThinking = false;
+    updateAiIndicator();
     updateStatus();
     updateMoveHistory();
     $('#status').removeClass('check game-over');
@@ -142,12 +238,15 @@ function newGame() {
 function undoMove() {
     if (moveHistory.length === 0) return;
     
-    // Undo twice to undo both white and black moves
-    game.undo();
-    game.undo();
-    
-    // Remove the moves from history
-    moveHistory = moveHistory.slice(0, -2);
+    // In AI mode, undo two moves (player + AI)
+    if (gameMode === 'ai' && moveHistory.length >= 2) {
+        game.undo();
+        game.undo();
+        moveHistory = moveHistory.slice(0, -2);
+    } else {
+        game.undo();
+        moveHistory = moveHistory.slice(0, -1);
+    }
     
     // Update board
     board.position(game.fen());
