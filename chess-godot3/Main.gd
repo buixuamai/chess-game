@@ -1,6 +1,6 @@
 extends Node2D
 
-# Enhanced Chess Game for Godot 3.x with AI Mode, Better Pieces, and Move History
+# Enhanced Chess Game for Godot 3.x with Unicode Chess Symbols
 
 var board = []
 var turn = true
@@ -14,24 +14,41 @@ var winner = ""
 var move_history = []
 
 var ai_enabled = false
-var ai_difficulty = 1
+
+# Unicode chess symbols
+var PIECE_SYMBOLS = {
+	"K": "♔", "Q": "♕", "R": "♖", "B": "♗", "N": "♘", "P": "♙",
+	"k": "♚", "q": "♛", "r": "♜", "b": "♝", "n": "♞", "p": "♟"
+}
+
+var piece_labels = []
 
 var new_game_btn
 var undo_btn
 var ai_btn
+var history_label
 
 func _ready():
 	create_ui()
+	init_piece_labels()
 	init_board()
 
+func init_piece_labels():
+	# Create label nodes for each piece position
+	for i in range(64):
+		var label = Label.new()
+		label.name = "Piece_" + str(i)
+		label.rect_position = Vector2(board_offset_x + (i % 8) * square_size + 5, board_offset_y + (i / 8) * square_size + 5)
+		label.rect_min_size = Vector2(square_size, square_size)
+		add_child(label)
+		piece_labels.append(label)
+
 func create_ui():
-	# Title
 	var title = Label.new()
 	title.rect_position = Vector2(20, 10)
 	title.text = "Chess Game"
 	add_child(title)
 	
-	# Buttons
 	new_game_btn = Button.new()
 	new_game_btn.text = "New Game"
 	new_game_btn.rect_position = Vector2(680, 20)
@@ -53,33 +70,28 @@ func create_ui():
 	ai_btn.connect("pressed", self, "on_ai_toggled")
 	add_child(ai_btn)
 	
-	# Turn indicator
 	var turn_label = Label.new()
 	turn_label.name = "TurnLabel"
 	turn_label.rect_position = Vector2(680, 65)
 	turn_label.text = "Turn: White"
 	add_child(turn_label)
 	
-	# Status
 	var status_label = Label.new()
 	status_label.name = "StatusLabel"
 	status_label.rect_position = Vector2(680, 95)
 	status_label.text = "Click a piece to select"
 	add_child(status_label)
 	
-	# Move History
 	var history_title = Label.new()
 	history_title.rect_position = Vector2(680, 140)
 	history_title.text = "Move History:"
 	add_child(history_title)
 	
-	var history_box = Label.new()
-	history_box.name = "HistoryLabel"
-	history_box.rect_position = Vector2(680, 170)
-	history_box.text = ""
-	add_child(history_box)
+	history_label = Label.new()
+	history_label.name = "HistoryLabel"
+	history_label.rect_position = Vector2(680, 170)
+	add_child(history_label)
 	
-	# Instructions
 	var instructions = Label.new()
 	instructions.rect_position = Vector2(20, 680)
 	instructions.text = "White: You | Black: AI | Click piece to select, click destination to move"
@@ -87,11 +99,7 @@ func create_ui():
 
 func on_ai_toggled():
 	ai_enabled = not ai_enabled
-	if ai_enabled:
-		ai_btn.text = "AI: ON"
-		ai_difficulty = 1
-	else:
-		ai_btn.text = "AI: OFF"
+	ai_btn.text = "AI: ON" if ai_enabled else "AI: OFF"
 	get_node("StatusLabel").text = "AI mode " + ("enabled" if ai_enabled else "disabled")
 
 func on_new_game_pressed():
@@ -101,6 +109,7 @@ func on_undo_pressed():
 	if move_history.size() > 0:
 		undo_last_move()
 		update_ui()
+		update_piece_display()
 
 func undo_last_move():
 	if move_history.size() > 0:
@@ -136,7 +145,6 @@ func get_move_notation(from_x, from_y, to_x, to_y, piece, captured):
 func update_ui():
 	var turn_label = get_node("TurnLabel")
 	var status_label = get_node("StatusLabel")
-	var history_label = get_node("HistoryLabel")
 	
 	if game_over:
 		turn_label.text = "Game Over!"
@@ -145,7 +153,6 @@ func update_ui():
 		turn_label.text = "Turn: " + ("White (You)" if turn else "Black (AI)")
 		status_label.text = "Your turn" if turn else "AI turn"
 	
-	# Update history display
 	var history_text = ""
 	var move_num = 1
 	var i = 0
@@ -165,6 +172,21 @@ func update_ui():
 	
 	history_label.text = history_text
 
+func update_piece_display():
+	for i in range(64):
+		var x = i % 8
+		var y = i / 8
+		var piece = board[y][x]
+		var label = piece_labels[i]
+		
+		if piece != "":
+			var symbol = PIECE_SYMBOLS.get(piece, "?")
+			var is_white = piece >= "A" and piece <= "Z"
+			label.text = symbol
+			label.add_color_override("font_color", Color.white if is_white else Color.black)
+		else:
+			label.text = ""
+
 func init_board():
 	board = [
 		["r", "n", "b", "q", "k", "b", "n", "r"],
@@ -181,6 +203,7 @@ func init_board():
 	game_over = false
 	winner = ""
 	move_history = []
+	update_piece_display()
 	update_ui()
 
 func _process(delta):
@@ -201,12 +224,9 @@ func make_ai_move():
 					for tx in range(8):
 						if is_valid_move(x, y, tx, ty):
 							possible_moves.append({
-								"from_x": x,
-								"from_y": y,
-								"to_x": tx,
-								"to_y": ty,
-								"piece": piece,
-								"target": board[ty][tx]
+								"from_x": x, "from_y": y,
+								"to_x": tx, "to_y": ty,
+								"piece": piece, "target": board[ty][tx]
 							})
 	
 	if possible_moves.size() > 0:
@@ -228,12 +248,9 @@ func make_ai_move():
 			selected_move = possible_moves[randi() % possible_moves.size()]
 		
 		var move = {
-			"from_x": selected_move.from_x,
-			"from_y": selected_move.from_y,
-			"to_x": selected_move.to_x,
-			"to_y": selected_move.to_y,
-			"captured": selected_move.target,
-			"piece": selected_move.piece,
+			"from_x": selected_move.from_x, "from_y": selected_move.from_y,
+			"to_x": selected_move.to_x, "to_y": selected_move.to_y,
+			"captured": selected_move.target, "piece": selected_move.piece,
 			"turn_before": turn
 		}
 		move_history.append(move)
@@ -243,11 +260,12 @@ func make_ai_move():
 		turn = not turn
 		
 		check_game_over()
+		update_piece_display()
 		update_ui()
 
 func _draw():
 	# Background
-	draw_rect(Rect2(0, 0, 1100, 800), Color(0.08, 0.08, 0.12))
+	draw_rect(Rect2(0, 0, 1100, 800), Color(0.1, 0.1, 0.15))
 	
 	# Board
 	for y in range(8):
@@ -265,13 +283,6 @@ func _draw():
 		var by = board_offset_y + y * square_size
 		draw_rect(Rect2(bx, by, square_size, square_size), Color(1, 1, 0, 0.4))
 		draw_possible_moves(x, y)
-	
-	# Pieces
-	for y in range(8):
-		for x in range(8):
-			var piece = board[y][x]
-			if piece != "":
-				draw_piece(x, y, piece)
 
 func draw_possible_moves(x, y):
 	for ty in range(8):
@@ -280,58 +291,6 @@ func draw_possible_moves(x, y):
 				var bx = board_offset_x + tx * square_size + square_size/2
 				var by = board_offset_y + ty * square_size + square_size/2
 				draw_circle(Vector2(bx, by), 10, Color(0, 1, 0, 0.5))
-
-func draw_piece(x, y, piece):
-	var cx = board_offset_x + x * square_size + square_size / 2
-	var cy = board_offset_y + y * square_size + square_size / 2
-	var is_white = piece >= "A" and piece <= "Z"
-	var p = piece.to_lower()
-	
-	# Colors
-	var base_color = Color(0.95, 0.95, 0.95) if is_white else Color(0.12, 0.12, 0.12)
-	var border_color = Color(0.6, 0.6, 0.6) if is_white else Color(0.02, 0.02, 0.02)
-	var symbol_color = Color(0.1, 0.1, 0.1) if is_white else Color(0.95, 0.95, 0.95)
-	
-	# Shadow
-	draw_circle(Vector2(cx + 3, cy + 3), 32, Color(0, 0, 0, 0.3))
-	
-	# Main body
-	draw_circle(Vector2(cx, cy), 30, base_color)
-	draw_circle(Vector2(cx, cy), 28, border_color)
-	draw_circle(Vector2(cx, cy), 24, base_color)
-	
-	# Piece shapes - more detailed
-	match p:
-		"k":  # King - tall with cross on top
-			draw_rect(Rect2(cx - 5, cy - 20, 10, 25), symbol_color)
-			draw_rect(Rect2(cx - 14, cy - 10, 28, 6), symbol_color)
-			# Cross
-			draw_rect(Rect2(cx - 2, cy - 22, 4, 8), symbol_color)
-			draw_rect(Rect2(cx - 6, cy - 18, 12, 4), symbol_color)
-		"q":  # Queen - tall with crown
-			draw_rect(Rect2(cx - 5, cy - 18, 10, 22), symbol_color)
-			draw_rect(Rect2(cx - 12, cy - 8, 24, 5), symbol_color)
-			# Crown bumps
-			draw_rect(Rect2(cx - 14, cy - 20, 4, 6), symbol_color)
-			draw_rect(Rect2(cx - 5, cy - 22, 4, 8), symbol_color)
-			draw_rect(Rect2(cx + 4, cy - 22, 4, 8), symbol_color)
-			draw_rect(Rect2(cx + 12, cy - 20, 4, 6), symbol_color)
-		"r":  # Rook - castle
-			draw_rect(Rect2(cx - 14, cy - 10, 28, 20), symbol_color)
-			draw_rect(Rect2(cx - 16, cy - 18, 6, 10), symbol_color)
-			draw_rect(Rect2(cx - 5, cy - 20, 10, 12), symbol_color)
-			draw_rect(Rect2(cx + 12, cy - 18, 6, 10), symbol_color)
-		"b":  # Bishop - tall with hat
-			draw_rect(Rect2(cx - 6, cy - 10, 12, 18), symbol_color)
-			draw_circle(Vector2(cx, cy - 12), 10, symbol_color)
-			draw_rect(Rect2(cx - 2, cy - 22, 4, 6), symbol_color)
-		"n":  # Knight - horse
-			draw_rect(Rect2(cx - 8, cy - 8, 14, 16), symbol_color)
-			draw_rect(Rect2(cx + 2, cy - 18, 10, 12), symbol_color)
-			draw_rect(Rect2(cx - 4, cy - 20, 6, 6), symbol_color)
-		"p":  # Pawn
-			draw_rect(Rect2(cx - 3, cy - 6, 6, 10), symbol_color)
-			draw_circle(Vector2(cx, cy - 8), 10, symbol_color)
 
 func _input(event):
 	if ai_enabled and not turn:
@@ -365,10 +324,8 @@ func handle_click(x, y):
 		
 		if is_valid_move(from_x, from_y, x, y):
 			var move = {
-				"from_x": from_x,
-				"from_y": from_y,
-				"to_x": x,
-				"to_y": y,
+				"from_x": from_x, "from_y": from_y,
+				"to_x": x, "to_y": y,
 				"captured": board[y][x],
 				"piece": board[from_y][from_x],
 				"turn_before": turn
@@ -381,14 +338,13 @@ func handle_click(x, y):
 			selected_piece = null
 			
 			check_game_over()
+			update_piece_display()
 			update_ui()
 		else:
 			if turn and is_white_piece:
 				selected_piece = Vector2(x, y)
-				get_node("StatusLabel").text = "Piece selected - click destination"
 			elif not turn and is_black_piece and not ai_enabled:
 				selected_piece = Vector2(x, y)
-				get_node("StatusLabel").text = "Piece selected - click destination"
 			else:
 				selected_piece = null
 				get_node("StatusLabel").text = "Click a piece to select"
