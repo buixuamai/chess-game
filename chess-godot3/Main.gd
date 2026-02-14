@@ -1,6 +1,6 @@
 extends Node2D
 
-# Enhanced Chess Game for Godot 3.x with Unicode Chess Symbols
+# Enhanced Chess Game for Godot 3.x - Real Chess Piece Shapes
 
 var board = []
 var turn = true
@@ -15,14 +15,6 @@ var move_history = []
 
 var ai_enabled = false
 
-# Unicode chess symbols
-var PIECE_SYMBOLS = {
-	"K": "♔", "Q": "♕", "R": "♖", "B": "♗", "N": "♘", "P": "♙",
-	"k": "♚", "q": "♛", "r": "♜", "b": "♝", "n": "♞", "p": "♟"
-}
-
-var piece_labels = []
-
 var new_game_btn
 var undo_btn
 var ai_btn
@@ -30,18 +22,7 @@ var history_label
 
 func _ready():
 	create_ui()
-	init_piece_labels()
 	init_board()
-
-func init_piece_labels():
-	# Create label nodes for each piece position
-	for i in range(64):
-		var label = Label.new()
-		label.name = "Piece_" + str(i)
-		label.rect_position = Vector2(board_offset_x + (i % 8) * square_size + 5, board_offset_y + (i / 8) * square_size + 5)
-		label.rect_min_size = Vector2(square_size, square_size)
-		add_child(label)
-		piece_labels.append(label)
 
 func create_ui():
 	var title = Label.new()
@@ -109,7 +90,6 @@ func on_undo_pressed():
 	if move_history.size() > 0:
 		undo_last_move()
 		update_ui()
-		update_piece_display()
 
 func undo_last_move():
 	if move_history.size() > 0:
@@ -172,21 +152,6 @@ func update_ui():
 	
 	history_label.text = history_text
 
-func update_piece_display():
-	for i in range(64):
-		var x = i % 8
-		var y = i / 8
-		var piece = board[y][x]
-		var label = piece_labels[i]
-		
-		if piece != "":
-			var symbol = PIECE_SYMBOLS.get(piece, "?")
-			var is_white = piece >= "A" and piece <= "Z"
-			label.text = symbol
-			label.add_color_override("font_color", Color.white if is_white else Color.black)
-		else:
-			label.text = ""
-
 func init_board():
 	board = [
 		["r", "n", "b", "q", "k", "b", "n", "r"],
@@ -203,7 +168,6 @@ func init_board():
 	game_over = false
 	winner = ""
 	move_history = []
-	update_piece_display()
 	update_ui()
 
 func _process(delta):
@@ -260,7 +224,6 @@ func make_ai_move():
 		turn = not turn
 		
 		check_game_over()
-		update_piece_display()
 		update_ui()
 
 func _draw():
@@ -283,6 +246,104 @@ func _draw():
 		var by = board_offset_y + y * square_size
 		draw_rect(Rect2(bx, by, square_size, square_size), Color(1, 1, 0, 0.4))
 		draw_possible_moves(x, y)
+	
+	# Draw all pieces
+	for y in range(8):
+		for x in range(8):
+			var piece = board[y][x]
+			if piece != "":
+				draw_chess_piece(x, y, piece)
+
+func draw_chess_piece(x, y, piece):
+	var cx = board_offset_x + x * square_size + square_size / 2
+	var cy = board_offset_y + y * square_size + square_size / 2
+	var is_white = piece >= "A" and piece <= "Z"
+	var p = piece.to_lower()
+	
+	# Colors
+	var base_color = Color(0.95, 0.95, 0.9) if is_white else Color(0.15, 0.15, 0.15)
+	var border_color = Color(0.7, 0.7, 0.65) if is_white else Color(0.08, 0.08, 0.08)
+	var fill_color = Color(0.9, 0.9, 0.85) if is_white else Color(0.2, 0.2, 0.2)
+	
+	# Shadow
+	draw_circle(Vector2(cx + 2, cy + 2), 30, Color(0, 0, 0, 0.25))
+	
+	match p:
+		"k":  # King - tall with cross on top
+			# Base
+			draw_circle(Vector2(cx, cy + 5), 25, base_color)
+			draw_circle(Vector2(cx, cy + 5), 22, border_color)
+			draw_circle(Vector2(cx, cy + 5), 18, fill_color)
+			# Stem
+			draw_rect(Rect2(cx - 4, cy - 10, 8, 18), base_color)
+			# Cross horizontal
+			draw_rect(Rect2(cx - 12, cy - 12, 24, 5), base_color)
+			# Cross vertical
+			draw_rect(Rect2(cx - 3, cy - 18, 6, 14), base_color)
+			
+		"q":  # Queen - tall with crown
+			# Base
+			draw_circle(Vector2(cx, cy + 5), 25, base_color)
+			draw_circle(Vector2(cx, cy + 5), 22, border_color)
+			draw_circle(Vector2(cx, cy + 5), 18, fill_color)
+			# Stem
+			draw_rect(Rect2(cx - 4, cy - 8, 8, 16), base_color)
+			# Crown
+			draw_rect(Rect2(cx - 10, cy - 16, 20, 5), base_color)
+			# Crown points
+			draw_circle(Vector2(cx - 8, cy - 18), 4, base_color)
+			draw_circle(Vector2(cx, cy - 20), 4, base_color)
+			draw_circle(Vector2(cx + 8, cy - 18), 4, base_color)
+			
+		"r":  # Rook - castle shape
+			# Base
+			draw_rect(Rect2(cx - 20, cy - 5, 40, 30), base_color)
+			draw_rect(Rect2(cx - 18, cy - 3, 36, 26), border_color)
+			draw_rect(Rect2(cx - 16, cy - 1, 32, 22), fill_color)
+			# Battlements
+			draw_rect(Rect2(cx - 22, cy - 18, 10, 14), base_color)
+			draw_rect(Rect2(cx - 5, cy - 20, 10, 16), base_color)
+			draw_rect(Rect2(cx + 12, cy - 18, 10, 14), base_color)
+			# Battlements holes
+			draw_rect(Rect2(cx - 12, cy - 10, 4, 6), border_color)
+			draw_rect(Rect2(cx + 8, cy - 10, 4, 6), border_color)
+			
+		"b":  # Bishop - tall with hat
+			# Base
+			draw_circle(Vector2(cx, cy + 5), 22, base_color)
+			draw_circle(Vector2(cx, cy + 5), 19, border_color)
+			draw_circle(Vector2(cx, cy + 5), 15, fill_color)
+			# Stem
+			draw_rect(Rect2(cx - 4, cy - 8, 8, 14), base_color)
+			# Hat
+			draw_circle(Vector2(cx, cy - 10), 14, base_color)
+			draw_rect(Rect2(cx - 2, cy - 22, 4, 6), base_color)
+			# Hole in hat
+			draw_circle(Vector2(cx, cy - 10), 5, border_color)
+			
+		"n":  # Knight - horse head shape
+			# Base
+			draw_rect(Rect2(cx - 15, cy - 5, 30, 25), base_color)
+			draw_rect(Rect2(cx - 13, cy - 3, 26, 21), border_color)
+			draw_rect(Rect2(cx - 11, cy - 1, 22, 17), fill_color)
+			# Head
+			draw_rect(Rect2(cx + 5, cy - 18, 14, 16), base_color)
+			draw_rect(Rect2(cx + 7, cy - 16, 10, 12), border_color)
+			# Ear
+			draw_rect(Rect2(cx + 15, cy - 22, 5, 7), base_color)
+			# Eye
+			draw_circle(Vector2(cx + 12, cy - 10), 3, border_color)
+			
+		"p":  # Pawn - simple circle on stem
+			# Base
+			draw_circle(Vector2(cx, cy + 8), 18, base_color)
+			draw_circle(Vector2(cx, cy + 8), 15, border_color)
+			draw_circle(Vector2(cx, cy + 8), 12, fill_color)
+			# Stem
+			draw_rect(Rect2(cx - 3, cy - 5, 6, 14), base_color)
+			# Head
+			draw_circle(Vector2(cx, cy - 5), 10, base_color)
+			draw_circle(Vector2(cx, cy - 5), 7, border_color)
 
 func draw_possible_moves(x, y):
 	for ty in range(8):
@@ -338,7 +399,6 @@ func handle_click(x, y):
 			selected_piece = null
 			
 			check_game_over()
-			update_piece_display()
 			update_ui()
 		else:
 			if turn and is_white_piece:
