@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect x="0" y="0" width="128" height="128" fill="#2c3e50"/>
+  <rect x="16" y="16" width="96" height="96" fill="#f0d9b5"/>
+  <rect x="32" y="16" width="64" height="32" fill="#b58863"/>
+  <rect x="16" y="48" width="32" height="32" fill="#b58863"/>
+  <rect x="80" y="48" width="32" height="32" fill="#b58863"/>
+  <rect x="32" y="80" width="64" height="32" fill="#b58863"/>
+  <text x="64" y="80" font-size="40" text-anchor="middle" fill="white">♔</text>
+</svg>
