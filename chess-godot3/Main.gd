@@ -268,7 +268,7 @@ func _draw():
 	for y in range(8):
 		for x in range(8):
 			var p = board[y][x]
-			if p != "": draw_p(x,y,p)
+			if p != "": draw_piece(x,y,p)
 
 func draw_piece(x,y,p):
 	var cx = off_x + x*sq + sq/2
