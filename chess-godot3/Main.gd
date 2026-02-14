@@ -1,6 +1,6 @@
 extends Node2D
 
-# Enhanced Chess Game for Godot 3.x - Full Features
+# Enhanced Chess Game for Godot 3.x - Fixed AI Turn Logic
 
 var board = []
 var turn = true  # true = white, false = black
@@ -13,8 +13,12 @@ var game_over = false
 var winner = ""
 var move_history = []
 
-# New features
+# AI features
 var ai_enabled = false
+var ai_moving = false  # Prevent multiple AI moves
+var ai_timer = 0.0
+
+# Additional features
 var captured_white = []  # pieces captured by black
 var captured_black = []  # pieces captured by white
 var game_timer = 0
@@ -32,6 +36,8 @@ var history_label
 var timer_label
 var captured_white_label
 var captured_black_label
+var status_label
+var turn_label
 
 func _ready():
 	randomize()
@@ -83,7 +89,7 @@ func create_ui():
 	add_child(load_btn)
 	
 	# Turn indicator
-	var turn_label = Label.new()
+	turn_label = Label.new()
 	turn_label.name = "TurnLabel"
 	turn_label.rect_position = Vector2(680, 105)
 	turn_label.text = "Turn: White"
@@ -115,7 +121,7 @@ func create_ui():
 	add_child(captured_white_label)
 	
 	# Status
-	var status_label = Label.new()
+	status_label = Label.new()
 	status_label.name = "StatusLabel"
 	status_label.rect_position = Vector2(680, 380)
 	status_label.text = "Click a piece to select"
@@ -141,7 +147,9 @@ func create_ui():
 func on_ai_toggled():
 	ai_enabled = not ai_enabled
 	ai_btn.text = "AI: ON" if ai_enabled else "AI: OFF"
-	get_node("StatusLabel").text = "AI mode " + ("enabled" if ai_enabled else "disabled")
+	status_label.text = "AI mode " + ("enabled - You play as White" if ai_enabled else "disabled")
+	# Reset game when toggling AI
+	init_board()
 
 func on_new_game_pressed():
 	init_board()
@@ -153,11 +161,11 @@ func on_undo_pressed():
 
 func on_save_pressed():
 	save_game()
-	get_node("StatusLabel").text = "Game saved!"
+	status_label.text = "Game saved!"
 
 func on_load_pressed():
 	load_game()
-	get_node("StatusLabel").text = "Game loaded!"
+	status_label.text = "Game loaded!"
 
 func save_game():
 	var save_data = {
@@ -216,6 +224,7 @@ func undo_last_move():
 		
 		game_over = false
 		winner = ""
+		ai_moving = false
 
 func get_piece_name(p):
 	match p.to_lower():
@@ -250,15 +259,15 @@ func get_move_notation(from_x, from_y, to_x, to_y, piece, captured):
 		return piece_name[0] + files[to_x] + ranks[to_y]
 
 func update_ui():
-	var turn_label = get_node("TurnLabel")
-	var status_label = get_node("StatusLabel")
-	
 	if game_over:
 		turn_label.text = "Game Over!"
 		status_label.text = winner + " wins!"
 	else:
 		turn_label.text = "Turn: " + ("White (You)" if turn else "Black (AI)")
-		status_label.text = "Your turn" if turn else "AI turn"
+		if ai_enabled:
+			status_label.text = "Your turn - move a white piece" if turn else "AI is thinking..."
+		else:
+			status_label.text = "Click a piece to select"
 	
 	# Update timer
 	var white_min = int(white_time) / 60
@@ -271,11 +280,15 @@ func update_ui():
 	var white_text = "White taken: "
 	for p in captured_white:
 		white_text += get_piece_symbol(p) + " "
+	if captured_white.size() == 0:
+		white_text = "White taken: (none)"
 	captured_black_label.text = white_text
 	
 	var black_text = "Black taken: "
 	for p in captured_black:
 		black_text += get_piece_symbol(p) + " "
+	if captured_black.size() == 0:
+		black_text = "Black taken: (none)"
 	captured_white_label.text = black_text
 	
 	# Update move history
@@ -319,6 +332,8 @@ func init_board():
 	white_time = 300
 	black_time = 300
 	game_started = false
+	ai_moving = false
+	ai_timer = 0.0
 	update_ui()
 
 func _process(delta):
@@ -336,20 +351,28 @@ func _process(delta):
 				winner = "White (Time)"
 		update_ui()
 	
-	# AI turn
-	if ai_enabled and not turn and not game_over:
-		if selected_piece == null:
-			yield(get_tree().create_timer(0.5), "timeout")
-			make_ai_move()
+	# AI turn - wait for player to move first, then AI responds
+	if ai_enabled and not turn and not game_over and not ai_moving:
+		# Only start AI thinking after player has made a move
+		if move_history.size() > 0:
+			ai_timer += delta
+			if ai_timer >= 0.5:  # 500ms delay like JS version
+				ai_moving = true
+				make_ai_move()
+	
 	update()
 
 func make_ai_move():
+	if game_over:
+		ai_moving = false
+		return
+	
 	var possible_moves = []
 	
 	for y in range(8):
 		for x in range(8):
 			var piece = board[y][x]
-			if piece != "" and piece >= "a" and piece <= "z":
+			if piece != "" and piece >= "a" and piece <= "z":  # Black pieces
 				for ty in range(8):
 					for tx in range(8):
 						if is_valid_move(x, y, tx, ty):
@@ -396,6 +419,8 @@ func make_ai_move():
 			game_started = true
 		
 		check_game_over()
+		ai_moving = false
+		ai_timer = 0.0
 		update_ui()
 
 func sort_moves(a, b):
@@ -419,9 +444,7 @@ func rate_move(from_x, from_y, to_x, to_y):
 	
 	# Bonus for advancing pawns
 	if piece.to_lower() == "p":
-		if turn and to_y < from_y:
-			score += 2
-		elif not turn and to_y > from_y:
+		if to_y > from_y:  # Black pawns move down
 			score += 2
 	
 	return score
@@ -529,7 +552,8 @@ func draw_chess_piece(x, y, piece):
 			draw_circle(Vector2(cx, cy - 5), 7, border_color)
 
 func _input(event):
-	if ai_enabled and not turn:
+	# Don't allow clicks during AI turn
+	if ai_moving:
 		return
 	
 	if event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_LEFT:
@@ -544,16 +568,20 @@ func handle_click(x, y):
 	var is_white_piece = piece != "" and piece >= "A" and piece <= "Z"
 	var is_black_piece = piece != "" and piece >= "a" and piece <= "z"
 	
-	if ai_enabled and is_black_piece:
-		return
+	# In AI mode, only allow selecting white pieces when it's white's turn
+	if ai_enabled:
+		if turn and is_black_piece:
+			return  # Can't select black pieces
+		elif not turn:
+			return  # Can't select during AI turn
 	
 	if selected_piece == null:
 		if turn and is_white_piece:
 			selected_piece = Vector2(x, y)
-			get_node("StatusLabel").text = "Piece selected - click destination"
+			status_label.text = "Piece selected - click destination"
 		elif not turn and is_black_piece and not ai_enabled:
 			selected_piece = Vector2(x, y)
-			get_node("StatusLabel").text = "Piece selected - click destination"
+			status_label.text = "Piece selected - click destination"
 	else:
 		var from_x = selected_piece.x
 		var from_y = selected_piece.y
@@ -589,13 +617,14 @@ func handle_click(x, y):
 			check_game_over()
 			update_ui()
 		else:
+			# Clicked on another piece - select it instead
 			if turn and is_white_piece:
 				selected_piece = Vector2(x, y)
 			elif not turn and is_black_piece and not ai_enabled:
 				selected_piece = Vector2(x, y)
 			else:
 				selected_piece = null
-				get_node("StatusLabel").text = "Click a piece to select"
+				status_label.text = "Click a piece to select"
 
 func check_game_over():
 	var white_king = false
